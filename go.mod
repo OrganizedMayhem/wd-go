@@ -1,4 +1,4 @@
-module github.com/OrganizedMayhem/wd
+module github.com/OrganizedMayhem/wd-go
 
 go 1.23.4
 
