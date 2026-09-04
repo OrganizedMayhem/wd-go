@@ -9,7 +9,29 @@ permissions:
   contents: write
 
 jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      on-main: ${{ steps.ancestry.outputs.on-main }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag commit is on main
+        id: ancestry
+        run: |
+          release_commit=$(git rev-list -n 1 "$GITHUB_REF")
+          if git merge-base --is-ancestor "$release_commit" origin/main; then
+            echo "on-main=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "on-main=false" >> "$GITHUB_OUTPUT"
+            echo "Tag commit is not reachable from main; skipping release."
+          fi
+
   build:
+    needs: validate-tag
+    if: needs.validate-tag.outputs.on-main == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -71,7 +93,8 @@ jobs:
           path: ${{ steps.package.outputs.asset }}
 
   release:
-    needs: build
+    needs: [validate-tag, build]
+    if: needs.validate-tag.outputs.on-main == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
@@ -82,7 +105,7 @@ jobs:
 
       - name: Create checksums
         working-directory: artifacts
-        run: sha256sum * > checksums.txt
+        run: sha256sum ./* > checksums.txt
 
       - name: Create release
         uses: softprops/action-gh-release@v3.0.3
