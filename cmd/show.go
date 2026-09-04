@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"bufio"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -13,60 +14,45 @@ var showCmd = &cobra.Command{
 	Use:   "show [point]",
 	Short: "Print path to given warp point",
 	Args:  cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		configFile, err := os.UserHomeDir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		configFile += "/.warprc"
-
-		file, err := os.Open(configFile)
-		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Println("No warp points yet.")
-				return
-			}
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		defer file.Close()
-
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
-			pointToShow := args[0]
-			scanner := bufio.NewScanner(file)
-			for scanner.Scan() {
-				line := scanner.Text()
-				parts := strings.SplitN(line, ":", 2)
-				if len(parts) == 2 && parts[0] == pointToShow {
-					fmt.Println(parts[1])
-					return
-				}
-			}
-			fmt.Printf("Warp point '%s' not found.\n", pointToShow)
-		} else {
-			pwd, err := os.Getwd()
+			path, err := getWarpPoint(args[0])
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				return err
 			}
+			fmt.Fprintln(cmd.OutOrStdout(), path)
+			return nil
+		}
 
-			var points []string
-			scanner := bufio.NewScanner(file)
-			for scanner.Scan() {
-				line := scanner.Text()
-				parts := strings.SplitN(line, ":", 2)
-				if len(parts) == 2 && parts[1] == pwd {
-					points = append(points, parts[0])
-				}
-			}
+		store, err := newStore()
+		if err != nil {
+			return err
+		}
+		points, err := store.Load()
+		if errors.Is(err, fs.ErrNotExist) {
+			fmt.Fprintln(cmd.OutOrStdout(), "No warp points for current directory.")
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 
-			if len(points) > 0 {
-				fmt.Printf("Warp points for current directory: %s\n", strings.Join(points, ", "))
-			} else {
-				fmt.Println("No warp points for current directory.")
+		currentPath, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("get current directory: %w", err)
+		}
+		var names []string
+		for _, point := range points {
+			if point.Path == currentPath {
+				names = append(names, point.Name)
 			}
 		}
+		if len(names) == 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "No warp points for current directory.")
+			return nil
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Warp points for current directory: %s\n", strings.Join(names, ", "))
+		return nil
 	},
 }
 
