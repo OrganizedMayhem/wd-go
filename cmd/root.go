@@ -1,70 +1,56 @@
-// Package cmd implements the command line interface for wd-go.
+// Package cmd implements the command-line interface for wd.
 package cmd
 
 import (
-	"bufio"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "wd",
-	Short: "Warp to custom directories in terminal",
-	Long:  `wd (warp directory) is a tool that lets you jump to custom directories in the terminal`,
-	Args:  cobra.ArbitraryArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:           "wd",
+	Short:         "Warp to custom directories in terminal",
+	Long:          `wd (warp directory) is a tool that lets you jump to custom directories in the terminal`,
+	Args:          cobra.ArbitraryArgs,
+	SilenceErrors: true,
+	SilenceUsage:  true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		versionFlag, _ := cmd.Flags().GetBool("version")
 		if versionFlag {
-			fmt.Printf("wd-go version %s\n", version)
-			return
+			fmt.Fprintf(cmd.OutOrStdout(), "wd version %s\n", version)
+			return nil
 		}
-
 		if len(args) == 0 {
-			cmd.Help()
-			return
+			return cmd.Help()
 		}
 
-		pointToWarp := args[0]
-
-		configFile, err := os.UserHomeDir()
+		path, err := getWarpPoint(args[0])
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return err
 		}
-		configFile += "/.warprc"
-
-		file, err := os.Open(configFile)
-		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Fprintln(os.Stderr, "No warp points yet.")
-				os.Exit(1)
-			}
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		defer file.Close()
-
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			line := scanner.Text()
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 && parts[0] == pointToWarp {
-				fmt.Println(parts[1])
-				return
-			}
-		}
-
-		fmt.Fprintf(os.Stderr, "Warp point '%s' not found.\n", pointToWarp)
-		os.Exit(1)
+		fmt.Fprintln(cmd.OutOrStdout(), path)
+		return nil
 	},
+}
+
+func getWarpPoint(name string) (string, error) {
+	store, err := newStore()
+	if err != nil {
+		return "", err
+	}
+	path, err := store.Get(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", errors.New("no warp points yet")
+	}
+	return path, err
 }
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

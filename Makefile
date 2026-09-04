@@ -2,8 +2,8 @@
 
 BINARY-DEV := wd-dev
 BINARY-PROD := wd
-VERSION := $(shell grep 'const version' cmd/version.go | sed 's/.*"\(.*\)".*/\1/')
-LDFLAGS_PROD := -ldflags="-s -w -X wd-go/cmd.version=$(VERSION)"
+VERSION := $(shell grep '^var version = ' cmd/version.go | sed 's/.*"\(.*\)".*/\1/')
+LDFLAGS_PROD := -ldflags="-s -w -X github.com/OrganizedMayhem/wd/cmd.version=$(VERSION)"
 GCFLAGS_DEV  := -gcflags="all=-N -l"
 
 .PHONY: help dev prod clean-dev clean-prod test install

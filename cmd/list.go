@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"bufio"
+	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 
 	"github.com/spf13/cobra"
 )
@@ -11,34 +11,24 @@ import (
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Print all stored warp points",
-	Run: func(cmd *cobra.Command, args []string) {
-		configFile, err := os.UserHomeDir()
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		store, err := newStore()
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
-		configFile += "/.warprc"
-
-		file, err := os.Open(configFile)
+		points, err := store.Load()
+		if errors.Is(err, fs.ErrNotExist) {
+			fmt.Fprintln(cmd.OutOrStdout(), "No warp points yet. Add one with 'wd add'.")
+			return nil
+		}
 		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Println("No warp points yet. Add one with 'wd add'.")
-				return
-			}
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
-		defer file.Close()
-
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			fmt.Println(scanner.Text())
+		for _, point := range points {
+			fmt.Fprintf(cmd.OutOrStdout(), "%s:%s\n", point.Name, point.Path)
 		}
-
-		if err := scanner.Err(); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		return nil
 	},
 }
 

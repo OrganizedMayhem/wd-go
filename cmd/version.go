@@ -6,13 +6,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "0.10.1"
+var version = "0.10.1"
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print the version number of wd-go",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("wd-go version %s\n", version)
+	Short: "Print the version number of wd",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Fprintf(cmd.OutOrStdout(), "wd version %s\n", version)
+		return nil
 	},
 }
 

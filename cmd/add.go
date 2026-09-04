@@ -14,41 +14,26 @@ var addCmd = &cobra.Command{
 	Long: `Adds the current working directory to your warp points.
 If no point is specified, the current directory's name will be used.`,
 	Args: cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		// Add a warp point
-		pwd, err := os.Getwd()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		path, err := os.Getwd()
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return fmt.Errorf("get current directory: %w", err)
 		}
 
-		var point string
+		point := filepath.Base(path)
 		if len(args) > 0 {
 			point = args[0]
-		} else {
-			point = filepath.Base(pwd)
 		}
 
-		configFile, err := os.UserHomeDir()
+		store, err := newStore()
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
-		configFile += "/.warprc"
-
-		f, err := os.OpenFile(configFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+		if err := store.Put(point, path); err != nil {
+			return err
 		}
-		defer f.Close()
-
-		if _, err := f.WriteString(fmt.Sprintf("%s:%s\n", point, pwd)); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		fmt.Printf("Added warp point '%s' to '%s'\n", point, pwd)
+		fmt.Fprintf(cmd.OutOrStdout(), "Added warp point '%s' to '%s'\n", point, path)
+		return nil
 	},
 }
 
